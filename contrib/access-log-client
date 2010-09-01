@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# ibuddy access log client
+# contributed by pablo muñoz-chapuli
+#
+
+HOST=nowhere.com
+APACHE_LOG=/var/log/apache2/access.log
+
+tail -f $APACHE_LOG  | awk '
+/ 200 / {
+        system("echo MACRO_GREEN|nc -u -q 0 $HOST 8888")
+}
+/ 404 / {
+        system("echo MACRO_RED|nc -u -q 0 $HOST 8888")
+}
+/ 500 / {
+        system("echo MACRO_BEAT2|nc -u -q 0 $HOST 8888")
+}'
+
