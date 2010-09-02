@@ -1,17 +1,14 @@
 import usb
 import time
 import sys
+from time import sleep
 
-################
-#Configuration
-################
-tsleep = 0.1
+## configuration
+tsleep = 0.5
+usbvendor = 0x1130
 usbproduct = 0001
 
-################
-# IBUDDY class
-################
-
+## iBUDDY class
 class BuddyDevice:
   SETUP   = (0x22, 0x09, 0x00, 0x02, 0x01, 0x00, 0x00, 0x00)
   MESS    = (0x55, 0x53, 0x42, 0x43, 0x00, 0x40, 0x02)
@@ -26,10 +23,9 @@ class BuddyDevice:
   battery = 0
   product = 0
 
-
   def __init__(self, battery, buddy_product):
     try:
-      self.dev=UsbDevice(0x1130, buddy_product, battery)
+      self.dev=UsbDevice(usbvendor, buddy_product, battery)
       self.dev.open()
       self.dev.handle.reset()
       self.resetMessage()
@@ -39,20 +35,20 @@ class BuddyDevice:
     except NoBuddyException, e:
       raise NoBuddyException()
       
-# Commands are sent as disabled bits
+# commands are sent as disabled bits
   def setReverseBitValue(self,num,value):
-     if (value==1):
-         temp = 0xFF - (1<<num)
-         self.finalMess = self.finalMess & temp
-     elif (value==0):
-         temp = 1 << num
-         self.finalMess = self.finalMess | temp
+    if (value==1):
+        temp = 0xFF - (1<<num)
+        self.finalMess = self.finalMess & temp
+    elif (value==0):
+        temp = 1 << num
+        self.finalMess = self.finalMess | temp
 
   def getReverseBitValue(self,num):
-     temp = self.finalMess
-     temp = temp >> num
-     res = not(temp&1)
-     return res
+    temp = self.finalMess
+    temp = temp >> num
+    res = not(temp&1)
+    return res
 
   def setHeadColor(self, red, green, blue):
     self.setReverseBitValue(4,red)
@@ -63,56 +59,52 @@ class BuddyDevice:
     self.setReverseBitValue(7,status)
 
   def pumpMessage(self):
-     self.send(self.finalMess)
+    self.send(self.finalMess)
 
   def resetMessage(self):
-     self.finalMess = 0xFF
+    self.finalMess = 0xFF
 
   def flick(self, direction):
-     if (direction == self.RIGHT):
-        self.setReverseBitValue(1,1)
-        self.setReverseBitValue(0,0)
-     elif(direction == self.LEFT):
-        self.setReverseBitValue(1,0)
-        self.setReverseBitValue(0,1)
+    if (direction == self.RIGHT):
+       self.setReverseBitValue(1,1)
+       self.setReverseBitValue(0,0)
+    elif(direction == self.LEFT):
+       self.setReverseBitValue(1,0)
+       self.setReverseBitValue(0,1)
 
   def wing(self, direction):
-     if (direction == self.UP):
-        self.setReverseBitValue(3,1)
-        self.setReverseBitValue(2,0)
-     elif(direction == self.DOWN):
-        self.setReverseBitValue(3,0)
-        self.setReverseBitValue(2,1)
+    if (direction == self.UP):
+       self.setReverseBitValue(3,1)
+       self.setReverseBitValue(2,0)
+    elif(direction == self.DOWN):
+       self.setReverseBitValue(3,0)
+       self.setReverseBitValue(2,1)
 
   def getColors (self):
-     return self.getReverseBitValue(4), self.getReverseBitValue(5), self.getReverseBitValue(6)
+    return self.getReverseBitValue(4), self.getReverseBitValue(5), self.getReverseBitValue(6)
 
   def getHeart(self):
-     return self.getReverseBitValue(7)
+    return self.getReverseBitValue(7)
 
   def getWing(self):
-     return self.getReverseBitValue(2)
+    return self.getReverseBitValue(2)
 
   def getDirection(self):
-     return self.getReverseBitValue(1)
+    return self.getReverseBitValue(1)
 
   def send(self, inp):
-    """
     try:
         self.dev.handle.controlMsg(0x21, 0x09, self.SETUP, 0x02, 0x01)
         self.dev.handle.controlMsg(0x21, 0x09, self.MESS+(inp,), 0x02, 0x01)
     except usb.USBError:
         print "USB error!"
         self.__init__(self.battery,buddy_product)
-    """
+
     #self.dev.handle.controlMsg(0x21, 0x09, self.SETUP, 0x02, 0x01)
     #self.dev.handle.controlMsg(0x22, 0x09, self.SETUP, 0x02, 0x01)
-    self.dev.handle.controlMsg(0x21, 0x09, self.MESS+(inp,), 0x02, 0x01)
+    #self.dev.handle.controlMsg(0x21, 0x09, self.MESS+(inp,), 0x02, 0x01)
 
-#####################
-# USB class
-######################
-
+## USB class
 class UsbDevice:
   def __init__(self, vendor_id, product_id, skip):
     busses = usb.busses()
@@ -142,7 +134,7 @@ class UsbDevice:
     if self.handle:
       self.handle = None
     self.handle = self.dev.open()
-    #We need to detach HID interface
+    # we need to detach HID interface
     try:
         self.handle.detachKernelDriver(0)
         self.handle.detachKernelDriver(1)
@@ -159,7 +151,7 @@ class NoBuddyException(Exception): pass
 # MAIN program
 #######################################
 
-#Initialize device
+# initialize device
 print "Starting search..."
 try:
     buddy=BuddyDevice(0, int(usbproduct))
@@ -169,5 +161,44 @@ except NoBuddyException, e:
 
 buddy.resetMessage()
 buddy.pumpMessage()
-buddy.setHeart(1)
+sleep(0.5)
+buddy.setHeadColor(1,0,0)
+buddy.pumpMessage()
+sleep(0.5)
+buddy.setHeadColor(0,1,0)
+buddy.pumpMessage()
+sleep(0.5)
+buddy.setHeadColor(0,0,1)
+buddy.pumpMessage()
+sleep(0.5)
+buddy.flick(BuddyDevice.LEFT)
+buddy.pumpMessage()
+sleep(0.5)
+buddy.flick(BuddyDevice.RIGHT)
+buddy.pumpMessage()
+sleep(0.5)
+buddy.flick(BuddyDevice.LEFT)
+buddy.pumpMessage()
+sleep(0.5)
+buddy.flick(BuddyDevice.RIGHT)
+buddy.pumpMessage()
+sleep(0.1)
+buddy.wing(BuddyDevice.UP)
+buddy.pumpMessage()
+sleep(0.1)
+buddy.wing(BuddyDevice.DOWN)
+buddy.pumpMessage()
+sleep(0.1)
+buddy.wing(BuddyDevice.UP)
+buddy.pumpMessage()
+sleep(0.1)
+buddy.wing(BuddyDevice.DOWN)
+buddy.pumpMessage()
+sleep(0.1)
+buddy.wing(BuddyDevice.UP)
+buddy.pumpMessage()
+sleep(0.1)
+buddy.wing(BuddyDevice.DOWN)
+buddy.pumpMessage()
+buddy.setHeadColor(0,0,0)
 buddy.pumpMessage()

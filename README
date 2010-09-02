@@ -6,14 +6,10 @@ released under MIT License (http://www.opensource.org/licenses/mit-license.php)
 -----
 
 Description:
-Instead of using your i-buddy (http://www.i-buddy.com) with MSN Messenger, why not use it to show other info?
-With pybuddy, you can control your i-buddy to do any of the supported actions: change head color, blink its 
-heart, beat its wings, etc. Example uses are: monitoring a website traffic (404s in red, 500s beating wings, 
-200s in green), showing your project's continuous integration process, ...and so on.
+Instead of using your i-buddy (http://www.i-buddy.com) with MSN Messenger, why not use it to show other info? With pybuddy, you can control your i-buddy to do any of the supported actions: change head color, blink its heart, beat its wings, etc. Example uses are: monitoring a website traffic (404s in red, 500s beating wings, 200s in green), showing your project's continuous integration process, ...and so on.
 
 Dependencies:
-The daemon is written in python, runs on Linux and needs python-usb. To install on Debian, use
-`apt-get install python-usb`; on RedHat, `yum install pyusb`. (Or `easy_install python-usb`?)
+The daemon is written in python, runs on Linux and needs python-usb. To install on Debian, use `apt-get install python-usb`; on RedHat, `yum install pyusb`. (Or `easy_install python-usb`?)
 
 Software using pybuddy:
     Beside the scripts published in the contrib directory, there is other software using pybuddy:
