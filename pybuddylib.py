@@ -7,6 +7,10 @@
 #  by Jose.Carlos.Luna@gmail.com and luis.peralta@gmail.com
 # who got most of the code from http://cuntography.com/blog/?p=17
 # which is based on http://scott.weston.id.au/software/pymissile/
+#
+# TODO: - Why does libusb require sudo/root on Linux?
+#       - Why does libusb-win32 error on Windoze?
+#
 
 import logging
 from time import sleep
@@ -25,10 +29,51 @@ else:
   console_handler.setLevel(logging.ERROR)
 log.addHandler(console_handler)
 
+### General USB Device Class
+class UsbDevice:
+  def __init__(self, vendor_id, product_id, skip):
+    busses = usb.busses()
+    self.handle = None
+    count = 0
+    for bus in busses:
+      devices = bus.devices
+      for dev in devices:
+
+        if dev.idVendor==vendor_id and dev.idProduct==product_id:
+          if count==skip:
+            log.info("iBuddy device found (vend: %s, prod: %s)." % (dev.idVendor, dev.idProduct))
+            self.dev = dev
+            
+            self.conf = self.dev.configurations[0]
+            self.intf = self.conf.interfaces[0][0]
+            self.endpoints = []
+            for endpoint in self.intf.endpoints:
+              self.endpoints.append(endpoint)
+              log.info("Endpoint found.")
+            return
+          else:
+            count=count+1
+    raise NoBuddyException()
+
+  def open(self):
+    # TODO: should the HID driver detachment be optional?
+    self.handle = self.dev.open()
+
+    # we need to detach HID interface
+    try:
+        self.handle.detachKernelDriver(0)
+        self.handle.detachKernelDriver(1)
+    except:
+        pass
+
+    self.handle.setConfiguration(self.conf)
+    self.handle.claimInterface(self.intf)
+    self.handle.setAltInterface(self.intf)
+
 ### iBuddy Device Class
 class iBuddyDevice:
   USB_VENDOR  = 0x1130
-  USB_PRODUCT = int(0001)
+  USB_PRODUCT = int(0x0001)
   BATTERY     = 0
   SETUP       = (0x22, 0x09, 0x00, 0x02, 0x01, 0x00, 0x00, 0x00)
   MESS        = (0x55, 0x53, 0x42, 0x43, 0x00, 0x40, 0x02)
@@ -41,6 +86,14 @@ class iBuddyDevice:
   DOWN  = 1
   OFF   = 0
   ON    = 1
+
+  BLUE   = (0,0,1)
+  GREEN  = (0,1,0)
+  LTBLUE = (0,1,1)
+  PURPLE = (1,0,1)
+  RED    = (1,0,0)
+  WHITE  = (1,1,1)
+  YELLOW = (1,1,0)
 
   CLEAR   = 0xFF
   command = CLEAR
@@ -82,11 +135,11 @@ class iBuddyDevice:
   def setReverseBitValue(self,num,value):
     """ commands are sent as disabled bits """
     if (value==1):
-        temp = 0xFF - (1<<num)
-        self.command = self.command & temp
+      temp = 0xFF - (1<<num)
+      self.command = self.command & temp
     elif (value==0):
-        temp = 1 << num
-        self.command = self.command | temp
+      temp = 1 << num
+      self.command = self.command | temp
 
   def getReverseBitValue(self,num):
     """ what was that bit set to again? """
@@ -117,10 +170,11 @@ class iBuddyDevice:
   def setWing(self, direction):
     """ move the wings iBuddyDevice.UP (0) or iBuddyDevice.DOWN (1) """
     if (direction == self.UP):
-       self.setReverseBitValue(3,1)
-       self.setReverseBitValue(2,0)
+      self.setReverseBitValue(3,1)
+      self.setReverseBitValue(2,0)
     elif(direction == self.DOWN):
-       self.setReverseBitValue(3,0)
+      self.setReverseBitValue(3,0)
+      self.setReverseBitValue(2,1)
 
   def getWing(self):
     """ returns wing status of iBuddyDevice.UP (0) or iBuddyDevice.DOWN (1) """
@@ -129,11 +183,11 @@ class iBuddyDevice:
   def setSwivel(self, direction):
     """ swivel the body iBuddyDevice.LEFT (0) or iBuddyDevice.RIGHT (1) """
     if (direction == self.RIGHT):
-       self.setReverseBitValue(1,1)
-       self.setReverseBitValue(0,0)
+      self.setReverseBitValue(1,1)
+      self.setReverseBitValue(0,0)
     elif(direction == self.LEFT):
-       self.setReverseBitValue(1,0)
-       self.setReverseBitValue(0,1)
+      self.setReverseBitValue(1,0)
+      self.setReverseBitValue(0,1)
 
   def getSwivel(self):
     """ returns current swivel direction as iBuddyDevice.LEFT (0) or iBuddyDevice.RIGHT (1) """
@@ -142,74 +196,43 @@ class iBuddyDevice:
   # the following items are macros for specific behaviors
 
   def doReset(self, seconds=WAITTIME):
+    """ reset to default positions/off, run command immediately """
     self.resetCmd()
     self.doCmd(seconds)
 
-  def doFlap(self, times=3, seconds=WAITTIME):
+  def doFlap(self, times=3, seconds=0.2):
+    """ flap wings X times with Y seconds pause in between, run command immediately """
     for i in range(times):
       self.setWing(self.UP)
       self.doCmd(seconds)
       self.setWing(self.DOWN)
       self.doCmd(seconds)
 
-  def doWiggle(self, times=2, seconds=WAITTIME):
+  def doWiggle(self, times=3, seconds=0.2):
+    """ wiggle back and forth X times with Y seconds pauses, run command immediately """
     for i in range(times):
       self.setSwivel(self.LEFT)
       self.doCmd(seconds)
       self.setSwivel(self.RIGHT)
       self.doCmd(seconds)
 
-  def doHeartbeat(self, times=3, seconds=WAITTIME):
+  def doHeartbeat(self, times=3, seconds=0.3):
+    """ blink heart X times with Y seconds' pause in betwee, run command immediately """
     for i in range(times):
       self.setHeart(self.ON)
       self.doCmd(seconds)
       self.setHeart(self.OFF)
       self.doCmd(seconds)
 
-  # TODO: macros for specific colors
+  def doColorRGB(self, r, g, b, seconds=WAITTIME):
+    """ set head color by red/green/blue values 0 or 1, run command immediately """
+    self.setHeadColors(r, g, b)
+    self.doCmd(seconds)
 
-
-### General USB Device Class
-class UsbDevice:
-  # TODO: improve on this device search
-  def __init__(self, vendor_id, product_id, skip):
-    busses = usb.busses()
-    self.handle = None
-    count = 0
-    for bus in busses:
-      devices = bus.devices
-      for dev in devices:
-
-        if dev.idVendor==vendor_id and dev.idProduct==product_id:
-          if count==skip:
-            log.info("iBuddy device found (vend: %s, prod: %s)." % (dev.idVendor, dev.idProduct))
-            self.dev = dev
-            
-            self.conf = self.dev.configurations[0]
-            self.intf = self.conf.interfaces[0][0]
-            self.endpoints = []
-            for endpoint in self.intf.endpoints:
-              self.endpoints.append(endpoint)
-              log.info("Endpoint found.")
-            return
-          else:
-            count=count+1
-    raise NoBuddyException()
-
-  def open(self):
-    # TODO: should the HID driver detachment be optional?
-    self.handle = self.dev.open()
-
-    # we need to detach HID interface
-    try:
-        self.handle.detachKernelDriver(0)
-        self.handle.detachKernelDriver(1)
-    except:
-        pass
-
-    self.handle.setConfiguration(self.conf)
-    self.handle.claimInterface(self.intf)
-    self.handle.setAltInterface(self.intf)
+  def doColorName(self, rgb, seconds=WAITTIME):
+    """ set head color with color name tuples, run command immediately """
+    self.setHeadColors(*rgb)
+    self.doCmd(seconds)
 
 ## Custom Exceptions
 class NoBuddyException(usb.USBError):
@@ -219,10 +242,10 @@ class NoBuddyException(usb.USBError):
   #  self.wrapped_exc = sys.exc_info()
   pass
 
-
 ### Main Program
 if __name__ == '__main__':
-  
+
+  # find iBuddy device 
   log.info("Starting search...")
   try:
       buddy = iBuddyDevice()
@@ -230,13 +253,14 @@ if __name__ == '__main__':
       log.exception("No iBuddy device found!")
       sys.exit(1)
 
-  # sample commands and macros
-  buddy.setHeadColors(1,0,0)
-  buddy.doCmd(1)
-  buddy.setHeadColors(0,1,0)
-  buddy.doCmd(1)
-  buddy.setHeadColors(0,0,1)
-  buddy.doCmd(1)
+  # demo command macros
+  buddy.doColorName(iBuddyDevice.PURPLE, 0.5)
+  buddy.doColorName(iBuddyDevice.BLUE, 0.5)
+  buddy.doColorName(iBuddyDevice.LTBLUE, 0.5)
+  buddy.doColorName(iBuddyDevice.YELLOW, 0.5)
+  buddy.doColorName(iBuddyDevice.GREEN, 0.5)
+  buddy.doColorName(iBuddyDevice.RED, 0.5)
+  buddy.doColorName(iBuddyDevice.WHITE, 0.5)
   buddy.doFlap()
   sleep(1)
   buddy.doWiggle()
