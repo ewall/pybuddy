@@ -14,6 +14,7 @@
 
 import logging
 from time import sleep
+from sys import exit
 import usb
 
 ### Global Configuration
@@ -41,7 +42,7 @@ class UsbDevice:
 
         if dev.idVendor==vendor_id and dev.idProduct==product_id:
           if count==skip:
-            log.info("iBuddy device found (vend: %s, prod: %s)." % (dev.idVendor, dev.idProduct))
+            log.info("USB device found (vend: %s, prod: %s)." % (dev.idVendor, dev.idProduct))
             self.dev = dev
             
             self.conf = self.dev.configurations[0]
@@ -49,7 +50,7 @@ class UsbDevice:
             self.endpoints = []
             for endpoint in self.intf.endpoints:
               self.endpoints.append(endpoint)
-              log.info("Endpoint found.")
+              log.info("USB endpoint found.")
             return
           else:
             count=count+1
@@ -117,7 +118,8 @@ class iBuddyDevice:
       self.dev.handle.controlMsg(0x21, 0x09, self.MESS+(inp,), 0x02, 0x01)
     except usb.USBError:
         if DEBUG:
-          raise
+          self.__init__()
+          #raise
         else:
           self.__init__()
 
@@ -251,7 +253,7 @@ if __name__ == '__main__':
       buddy = iBuddyDevice()
   except NoBuddyException, e:
       log.exception("No iBuddy device found!")
-      sys.exit(1)
+      exit(1)
 
   # demo command macros
   buddy.doColorName(iBuddyDevice.PURPLE, 0.5)
